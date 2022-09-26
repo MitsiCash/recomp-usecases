@@ -1,0 +1,86 @@
+:- eval(idp()).
+
+% negation as failure support
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+
+idp():-
+    % create account
+	 rcvMult(XID,P,From,request,{operation->create_account}),
+	 println(["log: Idp received request from ",From, " to create account"]),
+	 sendMsg(XID,P,From,input_request,{operation->credentials}),
+	 rcvMsg(XID,P,From,response,{username->User,pass->Pass}),
+     createAccount(User,Pass,From,OpenID,XID,P).
+
+createAccount(User,Pass,From,OpenID,XID,P):-
+    not(has_account(User,_,_)),
+    HPass = Pass.hashCode(),
+    OpenID = User.concat(".idpexample.org"),
+    assert(has_account(User,HPass,OpenID)),
+    !,  % here the cut stops the execution of the alternative createAccount
+    println(["log: Idp created account for ",User]),
+	sendMsgSync(XID,P,From,inform,{msg->"account created"}),
+	assert(consent(OpenID,store)),
+	sendMsgSync(XID,P,From,inform,{msg->"consent for OpenID/username/hashed password storage enabled"}),
+	sendMsgSync(XID,P,From,inform,{openID->OpenID}).
+
+createAccount(User,Pass,From,OpenID,XID,P):-
+    has_account(User,_,_),
+    sendMsgSync(XID,osgi,From,inform,{error->"Username Exists"}),
+    fail().
+
+% consent
+idp():-
+	 rcvMult(XID,P,From,request,{operation->consent}),
+     login(XID,P,From),
+	 sendMsg(XID,P,From,input_request,{operation->consent, purpose->auth_3rd, msg->"Consent for OpenId sharing to 3rd parties?"}),
+	 rcvMsg(XID,P,From,response,{answer->Answ, openID->OpenID}),
+	 consent(auth_3rd, OpenID, Answ, From, P, XID).
+
+consent(Purpose, OpenID, "yes", From, P, XID) :-
+    assert(consent(OpenID,Purpose)),
+    println(["log: Idp asserted ", From, "`s consent for 3rd party storage access"]),
+    sendMsgSync(XID,P,From,inform,{msg->"consent for 3rd party storage access enabled"}),
+    !.
+
+consent(Purpose, OpenID, "no", From,P, XID) :-
+    retract(consent(OpenID,Purpose)),
+    println(["log: Idp retracted ", From, "`s consent for 3rd party storage access"]),
+    sendMsgSync(XID,P,From,inform,{msg->"consent for 3rd party storage access disabled"}),
+    !.
+
+login(XID,P,From):-
+    sendMsg(XID,P,From,request,{operation->get_cookie}),
+    rcvMsg(XID,P,From,response,{session_cookie->Cookie, openID->OpenID}),
+    login(XID,P,From,Cookie,OpenID).
+
+login(XID,P,From,Cookie,OpenID):-
+    sessionCookie(OpenID,Cookie),
+    !.
+
+login(XID,P,From,Cookie,OpenID):-
+    not(sessionCookie(OpenID,Cookie)),
+    !,
+    sendMsg(XID,P,From,input_request,{operation->credentials}),
+    rcvMsg(XID,P,From,response,{username->User,pass->Pass}),
+    HPass = Pass.hashCode(),
+    has_account(User,HPass,OpenID),
+    NewCookie = OpenID.concat("_idpcookie"), % TODO: update
+    assert(sessionCookie(OpenID,Cookie)),
+    sendMsg(XID,P,From,data_exchange,{session_cookie->NewCookie}),
+    println(["log: ", From, " logged in IDP"]).
+
+has_account(User,HPass,_,From) :-
+    not(has_account(User,HPass,_)),
+    sendMsgSync(XID,osgi,From,inform,{username->User,error->"login Failed"}),
+    !,
+    fail().
+
+has_account(User,HPass,OpenID,From) :-
+    has_account(User,HPass,OpenID),
+    !.
+

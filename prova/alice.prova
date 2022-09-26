@@ -1,0 +1,74 @@
+:- eval(alice()).
+
+% negation as failure support
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+
+alice() :-
+    % forwards a simple request from javaRunner to the Agert
+ 	rcvMult(XID,Protocol,From,request,{operation->Op,agent->Agent}),
+	sendMsg(XID,Protocol,Agent,request,{operation->Op}).
+
+
+alice() :-
+    % alice responds to username/password request. Calls alice_response/4 that contains the proper
+    % login info (can be updated for different username/pass depending on the agent)
+    rcvMult(XID,Protocol,From,input_request,{operation->credentials}),
+    alice_response(credentials,From,XID,Protocol).
+
+alice_response(credentials,From,XID,Protocol) :-
+    User = "alice",
+    Pass = "12345",
+    sendMsg(XID,Protocol,From,response,{username->User,pass->Pass}).
+
+% alice receives the OpenID
+alice() :-
+ 	rcvMult(XID,Protocol,From,inform,{openID->OpenID}),
+ 	println(["log: Alice received the following openID: ", OpenID, " from ", From]),
+ 	assert(openID(From,OpenID)).
+
+% consent for IDP's 3rd party sharing
+alice() :-
+    rcvMult(XID,P,From,input_request,{operation->consent, purpose->auth_3rd, msg->Msg}),
+    alice_response(consent,auth3rd,From,XID,P,Msg).
+
+alice_response(consent,auth3rd,From,XID,P,Msg) :-
+    Answ = "yes", % a hard-coded yes
+    openID(From,OpenID),
+    sendMsg(XID,P,From,response,{answer->Answ, openID->OpenID}).
+
+% alice receives a cookie
+alice() :-
+ 	rcvMult(XID,Protocol,From,data_exchange,{session_cookie->Cookie}),
+ 	println(["log: Alice received the following cookie: ",Cookie,  " from ", From]),
+ 	assert(sessionCookie(From,Cookie)).
+
+alice() :-
+    % just prints any "inform" message that alice receives
+    rcvMult(XID,Protocol,From,inform,{msg->Msg}),
+    println(["log: Alice received the following message: ",Msg]).
+
+alice() :-
+    % prints any error message that alice receives
+    rcvMult(XID,Protocol,From,inform,{error->Error}),
+    println(["log: Alice received the following error: ",Error]).
+
+% cookies!
+alice() :-
+    rcvMult(XID,Protocol,From,request,{operation->get_cookie}),
+    cookieCheck(XID, Protocol, From).
+
+
+cookieCheck(XID, Protocol, From) :-
+    sessionCookie(From,Cookie),
+    openID(From,OpenID),
+    sendMsg(XID,Protocol,From,response,{session_cookie->Cookie, openID->OpenID}).
+
+cookieCheck(XID, Protocol, From) :-
+    not(sessionCookie(From,Cookie)),
+    openID(From,OpenID),
+    sendMsg(XID,Protocol,From,response,{session_cookie->null,openID->OpenID}).
