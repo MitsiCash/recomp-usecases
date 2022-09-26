@@ -41,6 +41,7 @@ idp():-
 	 rcvMsg(XID,P,From,response,{answer->Answ, openID->OpenID}),
 	 consent(auth_3rd, OpenID, Answ, From, P, XID).
 
+
 consent(Purpose, OpenID, "yes", From, P, XID) :-
     assert(consent(OpenID,Purpose)),
     println(["log: Idp asserted ", From, "`s consent for 3rd party storage access"]),
@@ -53,6 +54,18 @@ consent(Purpose, OpenID, "no", From,P, XID) :-
     sendMsgSync(XID,P,From,inform,{msg->"consent for 3rd party storage access disabled"}),
     !.
 
+
+% a login request from dwp
+idp():-
+    % login
+    rcvMult(XID,P,SP,request,{operation->login,agent->User}),
+    login(XID,P,User), % user logs in
+    isLoggedIn(User,OpenID), % get the OpenID,
+    !,
+    Token=OpenID.concat("token"), % TODO: update to use the auth token
+    sendMsg(XID,P,SP,inform,{operation->loginReply,authToken->Token,agent->User,openID->OpenID}).
+
+% logins
 login(XID,P,From):-
     sendMsg(XID,P,From,request,{operation->get_cookie}),
     rcvMsg(XID,P,From,response,{session_cookie->Cookie, openID->OpenID}),
@@ -72,6 +85,8 @@ login(XID,P,From,Cookie,OpenID):-
     NewCookie = OpenID.concat("_idpcookie"), % TODO: update
     assert(sessionCookie(OpenID,Cookie)),
     sendMsg(XID,P,From,data_exchange,{session_cookie->NewCookie}),
+    assert(isLoggedIn(From,OpenID)), % this is to retrieve the OpenID
+    !,
     println(["log: ", From, " logged in IDP"]).
 
 has_account(User,HPass,_,From) :-

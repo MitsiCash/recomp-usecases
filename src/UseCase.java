@@ -10,6 +10,7 @@ public class UseCase implements EPService {
 //    static final String kPort = null;
     final String alice_rulebase = "prova/alice.prova";
     final String idp_rulebase = "prova/idp.prova";
+    final String dwp_rulebase = "prova/dwp.prova";
 
     private final ProvaService service;
 
@@ -27,7 +28,7 @@ public class UseCase implements EPService {
     private void wait_() {
         try {
             synchronized (this) {
-                wait(2000);
+                wait(1000);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -41,14 +42,12 @@ public class UseCase implements EPService {
 
 //        String rp1 = service.instance("rp1", "");
 //        String rp2 = service.instance("rp2", "");
-//        String dwp = service.instance("dwp", "");
-//        String gdpr = service.instance("gdpr", "");
+        String dwp = service.instance("dwp", "");
 
         service.consult(alice, alice_rulebase, "alice");
         service.consult(idp, idp_rulebase, "idp");
 ////        service.consult(bob, bob_rulebase, "bob");
-//        service.consult(dwp, dwp_rulebase, "dwp");
-//        service.consult(gdpr, gdpr_rulebase, "gdpr");
+        service.consult(dwp, dwp_rulebase, "dwp");
 //        service.consult(rp1, rp1_rulebase, "Search app");
     }
 
@@ -72,9 +71,32 @@ public class UseCase implements EPService {
         payload.clear();
         payload.put("operation", "consent");
         payload.put("agent", "idp");
-
         service.send("xid", "alice", "javaRunner", "request", payload, this);
         wait_();
+
+        //Alice registers with the DWP
+        System.out.println("\nAlice attempts to register with the dwp:");
+        payload.clear();
+        payload.put("operation","create_account");
+        payload.put("agent", "dwp");
+        payload.put("webID", "alice.dwpexample.com");
+        service.send("xid", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+        //Alice tries to re-register with the DWP, an error should appear
+        System.out.println("\nAlice attempts to re-register with the dwp:");
+        service.send("xid", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+//        System.out.println("\nAlice attempts to upload an image to the dwp:");
+//        payload.clear();
+//        payload.put("agent", "dwp");
+//        payload.put("operation","store");
+//        payload.put("webID", "alice.example.com");
+//        payload.put("object", "image.jpeg");
+//
+//        service.send("xid_sender", "alice", "javaRunner", "request", payload, this);
+//        wait_();
     }
 
     public static void main(String[] args) {

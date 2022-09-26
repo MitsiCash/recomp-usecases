@@ -7,12 +7,16 @@ not(A) :-
         fail().
 not(_).
 
-
+% forwards a simple request from javaRunner to the Agent
 alice() :-
-    % forwards a simple request from javaRunner to the Agert
  	rcvMult(XID,Protocol,From,request,{operation->Op,agent->Agent}),
 	sendMsg(XID,Protocol,Agent,request,{operation->Op}).
 
+
+alice() :-
+    % forwards a request containing a webID from javaRunner to the Agent
+ 	rcvMult(XID,Protocol,From,request,{operation->Op,agent->Agent,webID->WebID}),
+	sendMsg(XID,Protocol,Agent,request,{operation->Op,webID->WebID}).
 
 alice() :-
     % alice responds to username/password request. Calls alice_response/4 that contains the proper
@@ -41,10 +45,19 @@ alice_response(consent,auth3rd,From,XID,P,Msg) :-
     openID(From,OpenID),
     sendMsg(XID,P,From,response,{answer->Answ, openID->OpenID}).
 
+% alice sets the idp
+alice() :-
+    rcvMult(XID,P,From,input_request,{operation->define_idp}),
+    alice_response(define_idp,From,XID,P).
+
+alice_response(define_idp,From,XID,P) :-
+    IDP = "idp",
+    sendMsg(XID,P,From,response,{idp->IDP}).
+
 % alice receives a cookie
 alice() :-
  	rcvMult(XID,Protocol,From,data_exchange,{session_cookie->Cookie}),
- 	println(["log: Alice received the following cookie: ",Cookie,  " from ", From]),
+ 	println(["log: Alice received the following cookie: ",Cookie, " from ", From]),
  	assert(sessionCookie(From,Cookie)).
 
 alice() :-
@@ -63,12 +76,12 @@ alice() :-
     cookieCheck(XID, Protocol, From).
 
 
-cookieCheck(XID, Protocol, From) :-
+cookieCheck(XID, Protocol, idp) :-
     sessionCookie(From,Cookie),
     openID(From,OpenID),
     sendMsg(XID,Protocol,From,response,{session_cookie->Cookie, openID->OpenID}).
 
-cookieCheck(XID, Protocol, From) :-
+cookieCheck(XID, Protocol, idp) :-
     not(sessionCookie(From,Cookie)),
     openID(From,OpenID),
     sendMsg(XID,Protocol,From,response,{session_cookie->null,openID->OpenID}).

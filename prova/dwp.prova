@@ -1,0 +1,65 @@
+:- eval(dwp()).
+
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+% create account
+dwp() :-
+	 rcvMult(XID,Protocol,User,request,{operation->create_account,webID->WebID}),
+	 createAccountHelper(XID,Protocol,User,WebID).
+
+createAccountHelper(XID,Protocol,User,WebID):-
+     not(hasAccount(WebID,_,_)),
+     !,
+	 sendMsg(XID,Protocol,User,input_request,{operation->define_idp}),
+	 rcvMult(XID,Protocol,User,response,{idp->IDP}),
+	 println(["log: dwp received request from ",User, " to create_account using ", IDP, " as an idp and webID:",WebID]),
+	 sendMsg(XID,Protocol,IDP,request,{operation->login,agent->User}),
+	 rcvMult(XID,Protocol,IDP,inform,{operation->loginReply,authToken->Token,agent->User,openID->OpenID}),
+     operation(create_account,WebID,IDP,User,OpenID,Protocol,XID).
+
+createAccountHelper(XID,Protocol,User,WebID):-
+    hasAccount(WebID,_,_),
+    !,
+    sendMsg(XID,Protocol,User,inform,{msg->"DWP account exists"}).
+
+operation(create_account,WebID,Provider,User,OpenID,P,XID):-
+    assert(hasAccount(WebID,OpenID,Provider)),
+    !,
+    NewCookie = WebID.concat("_dwpcookie"),
+    sendMsg(XID,P,User,data_exchange,{session_cookie->NewCookie}),
+    sendMsg(XID,P,User,inform,{msg->"DWP account created"}),
+    sendMsg(XID,P,User,inform,{msg->"consent for OpenID/username/hashed password storage enabled"}),
+    sendMsg(XID,P,User,inform,{msg->"consent for storage enabled"}).
+
+
+% operation
+dwp() :-
+    rcvMult(XID,Protocol,From,request,{operation->Op,webID->WebID,object->Obj}),
+    checkAuth(WebID,From,XID,Protocol),
+    operation(Op,WebID,Obj,From).
+
+checkAuth(WebID,From,XID,P) :-
+    sendMsg(XID,P,From,request,{operation->get_cookie}),
+    rcvMult(XID,P,From,response,{session_cookie->Cookie, webID->WebID}),
+
+    println([Cookie]),
+    println([WebID]).
+
+
+
+
+
+% the uploader always has read/write permissions
+hasWritePermission(WebID,Obj) :- isStored(WebID,Obj).
+hasReadPermission(WebID,Obj) :- isStored(WebID,Obj).
+
+
+% for testing, no need for bob to register or to login
+checkAuth(WebID,From) :-
+    loggedIn(From,WebID,_).
+
+loggedIn(bob,"bob.example.com",idp).
