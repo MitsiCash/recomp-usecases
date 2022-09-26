@@ -14,43 +14,121 @@ dwp() :-
 createAccountHelper(XID,Protocol,User,WebID):-
      not(hasAccount(WebID,_,_)),
      !,
-	 sendMsg(XID,Protocol,User,input_request,{operation->define_idp}),
+	 sendMsgSync(XID,Protocol,User,input_request,{operation->define_idp}),
 	 rcvMult(XID,Protocol,User,response,{idp->IDP}),
 	 println(["log: dwp received request from ",User, " to create_account using ", IDP, " as an idp and webID:",WebID]),
-	 sendMsg(XID,Protocol,IDP,request,{operation->login,agent->User}),
+	 sendMsgSync(XID,Protocol,IDP,request,{operation->login,agent->User}),
 	 rcvMult(XID,Protocol,IDP,inform,{operation->loginReply,authToken->Token,agent->User,openID->OpenID}),
      operation(create_account,WebID,IDP,User,OpenID,Protocol,XID).
 
 createAccountHelper(XID,Protocol,User,WebID):-
     hasAccount(WebID,_,_),
     !,
-    sendMsg(XID,Protocol,User,inform,{msg->"DWP account exists"}).
+    sendMsgSync(XID,Protocol,User,inform,{msg->"DWP account exists"}).
 
 operation(create_account,WebID,Provider,User,OpenID,P,XID):-
     assert(hasAccount(WebID,OpenID,Provider)),
     !,
     NewCookie = WebID.concat("_dwpcookie"),
-    sendMsg(XID,P,User,data_exchange,{session_cookie->NewCookie}),
-    sendMsg(XID,P,User,inform,{msg->"DWP account created"}),
-    sendMsg(XID,P,User,inform,{msg->"consent for OpenID/username/hashed password storage enabled"}),
-    sendMsg(XID,P,User,inform,{msg->"consent for storage enabled"}).
+    sendMsgSync(XID,P,User,data_exchange,{session_cookie->NewCookie}),
+    assert(sessionCookie(WebID,NewCookie)),
+    !,
+    sendMsgSync(XID,P,User,inform,{msg->"DWP account created"}),
+    sendMsgSync(XID,P,User,inform,{msg->"consent for OpenID/username/hashed password storage enabled"}),
+    sendMsgSync(XID,P,User,inform,{msg->"consent for storage enabled"}).
 
 
 % operation
 dwp() :-
-    rcvMult(XID,Protocol,From,request,{operation->Op,webID->WebID,object->Obj}),
-    checkAuth(WebID,From,XID,Protocol),
-    operation(Op,WebID,Obj,From).
+    rcvMult(XID,P,From,request,{operation->OP,webID->WebID,object->Obj}),
+    checkAuth(WebID,From,XID,P),
+    operation(OP,WebID,Obj,From,XID,P).
 
+operation(store,WebID,Obj,From,XID,P) :-
+    assert(isStored(WebID,Obj)),
+    !,
+    Msg = Obj.concat(" stored"),
+    sendMsgSync(XID,P,From,inform,{msg->Msg}).
+
+operation(retrieve,WebID,Obj,From,XID,P) :-
+    hasReadPermission(WebID,Obj),
+    !,
+    sendMsgSync(XID,P,From,data_exchange,{data->Obj}),
+    Msg = Obj.concat(" retrieved"),
+    sendMsgSync(XID,P,From,inform,{msg->Msg}).
+
+operation(retrieve,WebID,Obj,From,XID,P) :-
+    not(hasReadPermission(WebID,Obj)),
+    !,
+    Msg = Obj.concat(" has no read rights"),
+    sendMsgSync(XID,P,From,inform,{error->Msg}).
+
+
+% operations involving a 3rd party
+dwp() :-
+	 rcvMult(XID,P,From,request,{operation->OP,webID->WebID,object->Obj,subjectWebID->SWebID}),
+
+	 checkAuth(WebID,From,_,P),!,
+	 operation(OP,WebID,Obj,From,SWebID,XID,P).
+
+operation(read_permission,WebID,Obj,From,SWebID,XID,P) :-
+    isStored(WebID,Obj), !,
+    assert(hasReadPermission(SWebID,Obj)),
+    Msg = SWebID.concat(" has now read permisssion"),
+    sendMsgSync(XID,P,From,inform,{msg->Msg}).
+
+operation(_,WebID,Obj,From,SWebID,XID,P) :-
+    not(isStored(WebID,Obj)),
+    Msg = Obj.concat(" was not associated with the WebID"),
+    sendMsgSync(XID,P,From,inform,{error->Msg}).
+
+
+operation(write_permission,WebID,Obj,From,SWebID,XID,P) :-
+    isStored(WebID,Obj),
+    assert(hasWritePermission(SWebID,Obj)),
+    !,
+    Msg = SWebID.concat(" has now write permisssion"),
+    %Msg = Msg.concat(Obj),
+    sendMsgSync(XID,P,From,inform,{msg->Msg}).
+
+
+operation(revoke_read_permission,WebID,Obj,From,SWebID,XID,P) :-
+    isStored(WebID,Obj),
+    hasReadPermission(SWebID,Obj),
+    retract(hasReadPermission(SWebID,Obj)),
+    !,
+    Msg = SWebID.concat(" read permisssion revoked"),
+    %Msg = Msg.concat(Obj),
+    sendMsgSync(XID,P,From,inform,{msg->Msg}).
+
+operation(revoke_read_permission,WebID,Obj,From,SWebID,XID,P) :-
+    not(hasReadPermission(SWebID,Obj)),
+    Msg = Obj.concat(" cannot revoke permission"),
+    sendMsgSync(XID,P,From,inform,{error->Msg}).
+
+operation(revoke_write_permission,WebID,Obj,From,SWebID,XID,P) :-
+    isStored(WebID,Obj),
+    hasWritePermission(SWebID,Obj),
+    retract(hasWritePermission(SWebID,Obj)),
+    !,
+    Msg = SWebID.concat(" write permisssion revoked"),
+    %Msg = Msg.concat(Obj),
+    sendMsgSync(XID,P,From,inform,{msg->Msg}).
+
+operation(revoke_write_permission,WebID,Obj,From,SWebID,XID,P) :-
+    not(hasWritePermission(SWebID,Obj)),
+    Msg = Obj.concat(" cannot revoke permission"),
+    sendMsgSync(XID,P,From,inform,{error->Msg}).
+
+% autorization checker
 checkAuth(WebID,From,XID,P) :-
-    sendMsg(XID,P,From,request,{operation->get_cookie}),
-    rcvMult(XID,P,From,response,{session_cookie->Cookie, webID->WebID}),
+    sendMsgSync(XID,P,From,request,{operation->get_cookie}),
+    rcvMult(XID,P,From,response,{session_cookie->Cookie}),
+    login(WebID,From,Cookie,XID,P).
 
-    println([Cookie]),
-    println([WebID]).
-
-
-
+% This always succeeds, TODO: implement actual check
+login(WebID,From,Cookie,XID,P).
+% TODO: implement login when cookie is null/not in the KB
 
 
 % the uploader always has read/write permissions
@@ -59,7 +137,5 @@ hasReadPermission(WebID,Obj) :- isStored(WebID,Obj).
 
 
 % for testing, no need for bob to register or to login
-checkAuth(WebID,From) :-
-    loggedIn(From,WebID,_).
+checkAuth("bob.example.com",bob,_,_).
 
-loggedIn(bob,"bob.example.com",idp).

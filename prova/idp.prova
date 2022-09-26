@@ -12,7 +12,7 @@ idp():-
     % create account
 	 rcvMult(XID,P,From,request,{operation->create_account}),
 	 println(["log: Idp received request from ",From, " to create account"]),
-	 sendMsg(XID,P,From,input_request,{operation->credentials}),
+	 sendMsgSync(XID,P,From,input_request,{operation->credentials}),
 	 rcvMsg(XID,P,From,response,{username->User,pass->Pass}),
      createAccount(User,Pass,From,OpenID,XID,P).
 
@@ -37,7 +37,7 @@ createAccount(User,Pass,From,OpenID,XID,P):-
 idp():-
 	 rcvMult(XID,P,From,request,{operation->consent}),
      login(XID,P,From),
-	 sendMsg(XID,P,From,input_request,{operation->consent, purpose->auth_3rd, msg->"Consent for OpenId sharing to 3rd parties?"}),
+	 sendMsgSync(XID,P,From,input_request,{operation->consent, purpose->auth_3rd, msg->"Consent for OpenId sharing to 3rd parties?"}),
 	 rcvMsg(XID,P,From,response,{answer->Answ, openID->OpenID}),
 	 consent(auth_3rd, OpenID, Answ, From, P, XID).
 
@@ -63,28 +63,28 @@ idp():-
     isLoggedIn(User,OpenID), % get the OpenID,
     !,
     Token=OpenID.concat("token"), % TODO: update to use the auth token
-    sendMsg(XID,P,SP,inform,{operation->loginReply,authToken->Token,agent->User,openID->OpenID}).
+    sendMsgSync(XID,P,SP,inform,{operation->loginReply,authToken->Token,agent->User,openID->OpenID}).
 
 % logins
-login(XID,P,From):-
-    sendMsg(XID,P,From,request,{operation->get_cookie}),
-    rcvMsg(XID,P,From,response,{session_cookie->Cookie, openID->OpenID}),
-    login(XID,P,From,Cookie,OpenID).
+login(XID,P,User):-
+    sendMsgSync(XID,P,User,request,{operation->get_cookie}),
+    rcvMsg(XID,P,User,response,{session_cookie->Cookie}),
+    login(XID,P,User,Cookie).
 
-login(XID,P,From,Cookie,OpenID):-
+login(XID,P,From,Cookie):-
     sessionCookie(OpenID,Cookie),
     !.
 
-login(XID,P,From,Cookie,OpenID):-
+login(XID,P,From,Cookie):-
     not(sessionCookie(OpenID,Cookie)),
     !,
-    sendMsg(XID,P,From,input_request,{operation->credentials}),
+    sendMsgSync(XID,P,From,input_request,{operation->credentials}),
     rcvMsg(XID,P,From,response,{username->User,pass->Pass}),
     HPass = Pass.hashCode(),
     has_account(User,HPass,OpenID),
     NewCookie = OpenID.concat("_idpcookie"), % TODO: update
-    assert(sessionCookie(OpenID,Cookie)),
-    sendMsg(XID,P,From,data_exchange,{session_cookie->NewCookie}),
+    assert(sessionCookie(OpenID,Cookie)), !,
+    sendMsgSync(XID,P,From,data_exchange,{session_cookie->NewCookie}),
     assert(isLoggedIn(From,OpenID)), % this is to retrieve the OpenID
     !,
     println(["log: ", From, " logged in IDP"]).

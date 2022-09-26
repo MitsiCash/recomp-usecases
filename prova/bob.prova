@@ -1,0 +1,17 @@
+:- eval(bob()).
+
+bob() :-
+ 	rcvMult(XID,Protocol,From,request,{agent->Agent,operation->Op,webID->WebID,object->Obj}),
+	sendMsgSync(XID,Protocol,Agent,request,{operation->Op,webID->WebID,object->Obj}).
+
+bob() :-
+ 	rcvMult(XID,Protocol,From,inform,{msg->Msg}),
+ 	println(["log: Bob received the following message: ",Msg]).
+
+bob() :-
+ 	rcvMult(XID,Protocol,From,inform,{error->Error}),
+ 	println(["log: Bob received the following error: ",Error]).
+
+bob() :-
+ 	rcvMult(XID,Protocol,From,data_exchange,{data->Obj}),
+ 	println(["log: Bob received the following data: ",Obj]).

@@ -10,13 +10,27 @@ not(_).
 % forwards a simple request from javaRunner to the Agent
 alice() :-
  	rcvMult(XID,Protocol,From,request,{operation->Op,agent->Agent}),
-	sendMsg(XID,Protocol,Agent,request,{operation->Op}).
+	sendMsgSync(XID,Protocol,Agent,request,{operation->Op}).
 
-
+% forwards a request containing a webID from javaRunner to the Agent
 alice() :-
-    % forwards a request containing a webID from javaRunner to the Agent
- 	rcvMult(XID,Protocol,From,request,{operation->Op,agent->Agent,webID->WebID}),
-	sendMsg(XID,Protocol,Agent,request,{operation->Op,webID->WebID}).
+ 	rcvMult(XID,P,From,request,{operation->Op,agent->Agent,webID->WebID}),
+	sendMsgSync(XID,P,Agent,request,{operation->Op,webID->WebID}).
+
+% forwards a request containing a webID and an object from javaRunner to the Agent
+alice() :-
+ 	rcvMult(XID,P,From,request,{agent->Agent,operation->Op,webID->WebID,object->Obj}),
+	sendMsgSync(XID,P,Agent,request,{operation->Op,webID->WebID,object->Obj}).
+
+% this is for the search query
+alice() :-
+ 	rcvMult(XID,Protocol,From,request,{agent->Agent,operation->Op,webID->WebID,query->Q}),
+	sendMsgSync(XID,osgi,Agent,request,{operation->Op,webID->WebID,query->Q}).
+
+% ask Agent to perform an operation for Obj, involving the party subjectWebID
+alice() :-
+ 	rcvMult(XID,Protocol,From,request,{agent->Agent,operation->Op,webID->WebID,object->Obj,subjectWebID->SWebID}),
+	sendMsgSync(XID,osgi,Agent,request,{operation->Op,webID->WebID,object->Obj,subjectWebID->SWebID}).
 
 alice() :-
     % alice responds to username/password request. Calls alice_response/4 that contains the proper
@@ -27,7 +41,7 @@ alice() :-
 alice_response(credentials,From,XID,Protocol) :-
     User = "alice",
     Pass = "12345",
-    sendMsg(XID,Protocol,From,response,{username->User,pass->Pass}).
+    sendMsgSync(XID,Protocol,From,response,{username->User,pass->Pass}).
 
 % alice receives the OpenID
 alice() :-
@@ -43,7 +57,7 @@ alice() :-
 alice_response(consent,auth3rd,From,XID,P,Msg) :-
     Answ = "yes", % a hard-coded yes
     openID(From,OpenID),
-    sendMsg(XID,P,From,response,{answer->Answ, openID->OpenID}).
+    sendMsgSync(XID,P,From,response,{answer->Answ, openID->OpenID}).
 
 % alice sets the idp
 alice() :-
@@ -52,7 +66,7 @@ alice() :-
 
 alice_response(define_idp,From,XID,P) :-
     IDP = "idp",
-    sendMsg(XID,P,From,response,{idp->IDP}).
+    sendMsgSync(XID,P,From,response,{idp->IDP}).
 
 % alice receives a cookie
 alice() :-
@@ -70,18 +84,21 @@ alice() :-
     rcvMult(XID,Protocol,From,inform,{error->Error}),
     println(["log: Alice received the following error: ",Error]).
 
+alice() :-
+ 	rcvMult(XID,Protocol,From,data_exchange,{data->Obj}),
+ 	println(["log: Alice received the following data: ",Obj]).
+
 % cookies!
 alice() :-
     rcvMult(XID,Protocol,From,request,{operation->get_cookie}),
     cookieCheck(XID, Protocol, From).
 
 
-cookieCheck(XID, Protocol, idp) :-
+cookieCheck(XID, Protocol, From) :-
     sessionCookie(From,Cookie),
-    openID(From,OpenID),
-    sendMsg(XID,Protocol,From,response,{session_cookie->Cookie, openID->OpenID}).
+    sendMsgSync(XID,Protocol,From,response,{session_cookie->Cookie}).
 
-cookieCheck(XID, Protocol, idp) :-
+cookieCheck(XID, Protocol, From) :-
     not(sessionCookie(From,Cookie)),
-    openID(From,OpenID),
-    sendMsg(XID,Protocol,From,response,{session_cookie->null,openID->OpenID}).
+    sendMsgSync(XID,Protocol,From,response,{session_cookie->null}).
+

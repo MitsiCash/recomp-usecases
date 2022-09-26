@@ -11,6 +11,7 @@ public class UseCase implements EPService {
     final String alice_rulebase = "prova/alice.prova";
     final String idp_rulebase = "prova/idp.prova";
     final String dwp_rulebase = "prova/dwp.prova";
+    final String bob_rulebase = "prova/bob.prova";
 
     private final ProvaService service;
 
@@ -28,7 +29,7 @@ public class UseCase implements EPService {
     private void wait_() {
         try {
             synchronized (this) {
-                wait(1000);
+                wait(1500);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -38,7 +39,7 @@ public class UseCase implements EPService {
     private void initialize() {
         String alice = service.instance("alice", "");
         String idp = service.instance("idp", "");
-//        String bob = service.instance("bob", "");
+        String bob = service.instance("bob", "");
 
 //        String rp1 = service.instance("rp1", "");
 //        String rp2 = service.instance("rp2", "");
@@ -46,7 +47,7 @@ public class UseCase implements EPService {
 
         service.consult(alice, alice_rulebase, "alice");
         service.consult(idp, idp_rulebase, "idp");
-////        service.consult(bob, bob_rulebase, "bob");
+        service.consult(bob, bob_rulebase, "bob");
         service.consult(dwp, dwp_rulebase, "dwp");
 //        service.consult(rp1, rp1_rulebase, "Search app");
     }
@@ -63,40 +64,107 @@ public class UseCase implements EPService {
 
         // Alice tries to re-register, an error should appear
         System.out.println("\nAlice attempts to re-register:");
-        service.send("xid", "alice", "javaRunner", "request", payload, this);
+        service.send("xid1", "alice", "javaRunner", "request", payload, this);
         wait_();
 
         // Alice provides consent for 3rd party
         System.out.println("\nAlice consents for 3rd party:");
-        payload.clear();
+        payload=new HashMap<>();
         payload.put("operation", "consent");
         payload.put("agent", "idp");
-        service.send("xid", "alice", "javaRunner", "request", payload, this);
+        service.send("xid2", "alice", "javaRunner", "request", payload, this);
         wait_();
 
         //Alice registers with the DWP
         System.out.println("\nAlice attempts to register with the dwp:");
-        payload.clear();
+        payload=new HashMap<>();
         payload.put("operation","create_account");
         payload.put("agent", "dwp");
         payload.put("webID", "alice.dwpexample.com");
-        service.send("xid", "alice", "javaRunner", "request", payload, this);
+        service.send("xid3", "alice", "javaRunner", "request", payload, this);
         wait_();
 
         //Alice tries to re-register with the DWP, an error should appear
         System.out.println("\nAlice attempts to re-register with the dwp:");
-        service.send("xid", "alice", "javaRunner", "request", payload, this);
+        service.send("xid4", "alice", "javaRunner", "request", payload, this);
         wait_();
 
-//        System.out.println("\nAlice attempts to upload an image to the dwp:");
-//        payload.clear();
-//        payload.put("agent", "dwp");
-//        payload.put("operation","store");
-//        payload.put("webID", "alice.example.com");
-//        payload.put("object", "image.jpeg");
-//
-//        service.send("xid_sender", "alice", "javaRunner", "request", payload, this);
-//        wait_();
+        System.out.println("\nAlice attempts to upload an image to the dwp:");
+        payload=new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","store");
+        payload.put("webID", "alice.example.com");
+        payload.put("object", "image.jpeg");
+        service.send("xid5", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nAlice attempts to retrieve the image from the dwp:");
+        payload=new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","retrieve");
+        payload.put("webID", "alice.example.com");
+        payload.put("object", "image.jpeg");
+        service.send("xid6", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nBob attempts to retrieve the same image from the dwp:");
+        payload=new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","retrieve");
+        payload.put("webID", "bob.example.com");
+        payload.put("object", "image.jpeg");
+        service.send("xid7", "bob", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nAlice attempts to give permission to bob to read the image from the dwp");
+        payload=new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","read_permission");
+        payload.put("webID", "alice.example.com");
+        payload.put("subjectWebID", "bob.example.com");
+        payload.put("object", "image.jpeg");
+        service.send("xid8", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nBob attempts again to retrieve the same image from the dwp:");
+        payload=new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","retrieve");
+        payload.put("webID", "bob.example.com");
+        payload.put("object", "image.jpeg");
+        service.send("xid9", "bob", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nAlice revokes permission to bob to read the image from the dwp,");
+        System.out.println("but types the wrong image name:");
+        payload=new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","revoke_read_permission");
+        payload.put("webID", "alice.example.com");
+        payload.put("subjectWebID", "bob.example.com");
+        payload.put("object", "image2.jpeg");
+        service.send("xid8", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nAlice revokes permission to bob to read the image from the dwp,");
+        System.out.println("but types the correct image name:");
+        payload=new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","revoke_read_permission");
+        payload.put("webID", "alice.example.com");
+        payload.put("subjectWebID", "bob.example.com");
+        payload.put("object", "image.jpeg");
+        service.send("xid9", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nBob attempts again to retrieve the same image from the dwp:");
+        payload=new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","retrieve");
+        payload.put("webID", "bob.example.com");
+        payload.put("object", "image.jpeg");
+        service.send("xid9", "bob", "javaRunner", "request", payload, this);
+        wait_();
     }
 
     public static void main(String[] args) {
