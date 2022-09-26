@@ -1,0 +1,63 @@
+:- eval(searchApp()).
+
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+searchApp() :-
+    rcvMult(XID,P,From,request,{operation->search,webID->WebID,query->Q,dwp->DWP,idp->IDP}),
+    search(WebID,Q,From,Result,P,DWP,IDP),
+    sendMsgSync(XID,P,From,inform,{msg->Result}).
+
+search(WebID,Q,From,Result,P,DWP,IDP) :-
+    not(loggedIn(From,WebID,_)),
+    !,
+    sendMsgSync(XID,P,IDP,request,{operation->login,agent->From}),
+    rcvMult(XID,P,IDP,inform,{operation->loginReply,authToken->Token,agent->User,openID->OpenID}),
+    assert(loggedIn(From,WebID,DWP)),
+    !,
+    search(WebID,Q,From,Result,P,DWP,IDP).
+
+
+search(WebID,Q,From,Result,P,DWP,IDP) :-
+    loggedIn(From,WebID,Provider),
+    consent(WebID,personal,personalization),
+    searchHelper(WebID,Q,From,Result,yes).
+%    consent(WebID,personal,analytic),
+
+search(WebID,Q,From,Result,P,DWP,IDP) :-
+    not(consent(WebID,personal,personalization)),
+    alreadyAsked(WebID),
+    searchHelper(WebID,Q,From,Result,no).
+
+search(WebID,Q,From,Result,P,DWP,IDP) :-
+    loggedIn(From,WebID,DWP),
+    not(alreadyAsked(WebID,personal,personalization)),
+    Msg = "The searchApp wants your consent to access your personal data in order to deliver personalized results",
+    sendMsg(XID,P,From,input_request, {operation->consent, data->personal, purpose->personalization, msg->Msg}),
+    rcvMsg(XID,P,From,response,{answer->In}),
+    assert(alreadyAsked(WebID,personal,personalization)),
+    !,
+    searchHelper(WebID,Q,From,Result, In).
+
+searchHelper(WebID,Q,From,Result,yes) :-
+    not(consent(WebID,personal,personalization)),
+    assert(consent(WebID,personal,personalization)),
+    !,
+    personalizedSearch(WebID,Q,From,Result).
+
+searchHelper(WebID,Q,From,Result,yes) :-
+    consent(WebID,personal,personalization),
+    personalizedSearch(WebID,Q,From,Result).
+
+
+searchHelper(WebID,Q,From,Result,no) :-
+    nonPersonalizedSearch(Q,Result).
+
+nonPersonalizedSearch("travel suggestions",Result) :-
+    Result = "maybe less awesome places list".
+
+personalizedSearch(WebID,"travel suggestions",From,Result) :-
+    Result = "awesome places list".

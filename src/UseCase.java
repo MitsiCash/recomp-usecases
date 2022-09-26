@@ -12,6 +12,7 @@ public class UseCase implements EPService {
     final String idp_rulebase = "prova/idp.prova";
     final String dwp_rulebase = "prova/dwp.prova";
     final String bob_rulebase = "prova/bob.prova";
+    final String searchApp_rulebase = "prova/searchApp.prova";
 
     private final ProvaService service;
 
@@ -29,7 +30,7 @@ public class UseCase implements EPService {
     private void wait_() {
         try {
             synchronized (this) {
-                wait(1500);
+                wait(1000);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -41,7 +42,7 @@ public class UseCase implements EPService {
         String idp = service.instance("idp", "");
         String bob = service.instance("bob", "");
 
-//        String rp1 = service.instance("rp1", "");
+        String searchApp = service.instance("searchApp", "");
 //        String rp2 = service.instance("rp2", "");
         String dwp = service.instance("dwp", "");
 
@@ -49,7 +50,7 @@ public class UseCase implements EPService {
         service.consult(idp, idp_rulebase, "idp");
         service.consult(bob, bob_rulebase, "bob");
         service.consult(dwp, dwp_rulebase, "dwp");
-//        service.consult(rp1, rp1_rulebase, "Search app");
+        service.consult(searchApp, searchApp_rulebase, "searchApp");
     }
 
     public void runUseCase() {
@@ -164,6 +165,28 @@ public class UseCase implements EPService {
         payload.put("webID", "bob.example.com");
         payload.put("object", "image.jpeg");
         service.send("xid9", "bob", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nAlice uploads personal data to dwp");
+        payload = new HashMap<>();
+        payload.put("agent", "dwp");
+        payload.put("operation","store");
+        payload.put("webID", "alice.example.com");
+        payload.put("object", "personaData.txt");
+
+        service.send("xid10", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+        System.out.println("\nAlice searches something with the Search app");
+        payload = new HashMap<>();
+        payload.put("agent", "searchApp");
+        payload.put("operation","search");
+        payload.put("dwp","dwp");
+        payload.put("idp","idp");
+        payload.put("webID", "alice.example.com");
+        payload.put("query", "travel suggestions");
+
+        service.send("xid11", "alice", "javaRunner", "request", payload, this);
         wait_();
     }
 
