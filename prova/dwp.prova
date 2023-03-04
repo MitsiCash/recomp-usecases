@@ -24,7 +24,7 @@ createAccountHelper(XID,Protocol,User,WebID):-
 createAccountHelper(XID,Protocol,User,WebID):-
     hasAccount(WebID,_,_),
     !,
-    sendMsgSync(XID,Protocol,User,inform,{msg->"DWP account exists"}).
+    sendMsgSync(XID,Protocol,User,inform,{error->"DWP account exists"}).
 
 operation(create_account,WebID,Provider,User,OpenID,P,XID):-
     assert(hasAccount(WebID,OpenID,Provider)),

@@ -12,6 +12,11 @@ alice() :-
  	rcvMult(XID,Protocol,From,request,{operation->Op,agent->Agent}),
 	sendMsgSync(XID,Protocol,Agent,request,{operation->Op}).
 
+% forwards a request for login, also defining the ipd from javaRunner to the Agent
+alice() :-
+ 	rcvMult(XID,Protocol,From,request,{operation->Op,agent->Agent,idp->IDP}),
+	sendMsgSync(XID,Protocol,Agent,request,{operation->Op,idp->IDP}).
+
 % forwards a request containing a webID from javaRunner to the Agent
 alice() :-
  	rcvMult(XID,P,From,request,{operation->Op,agent->Agent,webID->WebID}),
@@ -24,8 +29,8 @@ alice() :-
 
 % this is for the search query
 alice() :-
- 	rcvMult(XID,P,From,request,{agent->Agent,operation->Op,webID->WebID,query->Q,dwp->DWP,idp->IDP}),
-	sendMsgSync(XID,P,Agent,request,{operation->Op,webID->WebID,query->Q,dwp->DWP,idp->IDP}).
+ 	rcvMult(XID,P,From,request,{agent->Agent,operation->Op,webID->WebID,query->Q,dwp->DWP}),
+	sendMsgSync(XID,P,Agent,request,{operation->Op,webID->WebID,query->Q,dwp->DWP}).
 
 % ask an Agent to perform an operation for Obj, involving the party subjectWebID
 alice() :-
@@ -35,9 +40,8 @@ alice() :-
 % alice responds to a request for personal data sharing, for personalization purposes
 alice() :-
     rcvMult(XID,P,From,input_request,{operation->consent, data->personal, purpose->personalization, msg->Msg}),
-    Answer = "no",
+    Answer = "yes",
     sendMsgSync(XID,P,From,response,{answer->Answer}).
-
 
 
 alice() :-

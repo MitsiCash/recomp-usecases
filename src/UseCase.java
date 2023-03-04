@@ -177,17 +177,38 @@ public class UseCase implements EPService {
         service.send("xid10", "alice", "javaRunner", "request", payload, this);
         wait_();
 
-        System.out.println("\nAlice searches something with the Search app");
+        System.out.println("\nAlice searches something with the Search app, but before log-in ");
         payload = new HashMap<>();
         payload.put("agent", "searchApp");
         payload.put("operation","search");
         payload.put("dwp","dwp");
-        payload.put("idp","idp");
         payload.put("webID", "alice.example.com");
         payload.put("query", "travel suggestions");
 
         service.send("xid11", "alice", "javaRunner", "request", payload, this);
         wait_();
+
+        System.out.println("\nAlice logs-in to the Search app");
+        payload = new HashMap<>();
+        payload.put("agent", "searchApp");
+        payload.put("idp","idp");
+        payload.put("operation","login");
+        service.send("xid11", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
+
+        System.out.println("\nAlice performs the same search");
+        payload = new HashMap<>();
+        // some are not yet used
+        payload.put("agent", "searchApp");
+        payload.put("operation","search");
+        payload.put("dwp","dwp");
+        payload.put("webID", "alice.example.com");
+        payload.put("query", "travel suggestions");
+
+        service.send("xid11", "alice", "javaRunner", "request", payload, this);
+        wait_();
+
     }
 
     public static void main(String[] args) {

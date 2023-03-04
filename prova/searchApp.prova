@@ -7,40 +7,38 @@ not(A) :-
 not(_).
 
 searchApp() :-
-    rcvMult(XID,P,From,request,{operation->search,webID->WebID,query->Q,dwp->DWP,idp->IDP}),
-    search(WebID,Q,From,Result,P,DWP,IDP),
+    rcvMult(XID,P,From,request,{operation->search,webID->WebID,query->Q,dwp->DWP}) [loggedIn(From,WebID,DWP), consent(WebID,personal,personalization)],
+    searchHelper(WebID,Q,From,Result,yes),
     sendMsgSync(XID,P,From,inform,{msg->Result}).
 
-search(WebID,Q,From,Result,P,DWP,IDP) :-
-    not(loggedIn(From,WebID,_)),
-    !,
-    sendMsgSync(XID,P,IDP,request,{operation->login,agent->From}),
-    rcvMult(XID,P,IDP,inform,{operation->loginReply,authToken->Token,agent->User,openID->OpenID}),
-    assert(loggedIn(From,WebID,DWP)),
-    !,
-    search(WebID,Q,From,Result,P,DWP,IDP).
-
-
-search(WebID,Q,From,Result,P,DWP,IDP) :-
-    loggedIn(From,WebID,Provider),
-    consent(WebID,personal,personalization),
-    searchHelper(WebID,Q,From,Result,yes).
-%    consent(WebID,personal,analytic),
-
-search(WebID,Q,From,Result,P,DWP,IDP) :-
-    not(consent(WebID,personal,personalization)),
-    alreadyAsked(WebID),
-    searchHelper(WebID,Q,From,Result,no).
-
-search(WebID,Q,From,Result,P,DWP,IDP) :-
-    loggedIn(From,WebID,DWP),
-    not(alreadyAsked(WebID,personal,personalization)),
+searchApp() :-
+    rcvMult(XID,P,From,request,{operation->search,webID->WebID,query->Q,dwp->DWP}) [loggedIn(From,WebID,DWP), not(alreadyAsked(WebID,personal,personalization))],
     Msg = "The searchApp wants your consent to access your personal data in order to deliver personalized results",
     sendMsg(XID,P,From,input_request, {operation->consent, data->personal, purpose->personalization, msg->Msg}),
     rcvMsg(XID,P,From,response,{answer->In}),
     assert(alreadyAsked(WebID,personal,personalization)),
-    !,
-    searchHelper(WebID,Q,From,Result, In).
+    searchHelper(WebID,Q,From,Result,In),
+    sendMsgSync(XID,P,From,inform,{msg->Result}).
+
+searchApp() :-
+    rcvMult(XID,P,From,request,{operation->search,webID->WebID,query->Q,dwp->DWP}) [loggedIn(From,WebID,DWP), alreadyAsked(WebID,personal,personalization), not(consent(WebID,personal,personalization))],
+    searchHelper(WebID,Q,From,Result,no),
+    sendMsgSync(XID,P,From,inform,{msg->Result}).
+
+searchApp() :-
+    rcvMult(XID,P,From,request,{operation->search,webID->WebID,query->Q}) [not(loggedIn(From,WebID,_))],
+    searchHelper(WebID,Q,From,Result,no),
+    sendMsgSync(XID,P,From,inform,{msg->Result}),
+    Msg = "log in to receive personalized search results",
+    sendMsgSync(XID,P,From,inform,{msg->Msg}).
+
+searchApp() :-
+    rcvMult(XID,P,From,request,{operation->login, idp->IDP}),
+    println(["HERE"]),
+    sendMsgSync(XID,P,IDP,request,{operation->login,agent->From}),
+    rcvMult(XID,P,IDP,inform,{operation->loginReply,authToken->Token,agent->From,openID->OpenID}),
+    assert(loggedIn(From,WebID,DWP)).
+
 
 searchHelper(WebID,Q,From,Result,yes) :-
     not(consent(WebID,personal,personalization)),
