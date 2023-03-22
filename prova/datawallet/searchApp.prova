@@ -34,7 +34,6 @@ searchApp() :-
 
 searchApp() :-
     rcvMult(XID,P,From,request,{operation->login, idp->IDP}),
-    println(["HERE"]),
     sendMsgSync(XID,P,IDP,request,{operation->login,agent->From}),
     rcvMult(XID,P,IDP,inform,{operation->loginReply,authToken->Token,agent->From,openID->OpenID}),
     assert(loggedIn(From,WebID,DWP)).

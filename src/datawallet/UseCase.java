@@ -1,3 +1,5 @@
+package datawallet;
+
 import org.provarules.service.EPService;
 import org.provarules.service.ProvaService;
 import org.provarules.service.impl.ProvaServiceImpl;
@@ -8,11 +10,11 @@ import java.util.Map;
 public class UseCase implements EPService {
     //    static final String kAgent = "prova";
 //    static final String kPort = null;
-    final String alice_rulebase = "prova/alice.prova";
-    final String idp_rulebase = "prova/idp.prova";
-    final String dwp_rulebase = "prova/dwp.prova";
-    final String bob_rulebase = "prova/bob.prova";
-    final String searchApp_rulebase = "prova/searchApp.prova";
+    final String alice_rulebase = "prova/datawallet/alice.prova";
+    final String idp_rulebase = "prova/datawallet/idp.prova";
+    final String dwp_rulebase = "prova/datawallet/dwp.prova";
+    final String bob_rulebase = "prova/datawallet/bob.prova";
+    final String searchApp_rulebase = "prova/datawallet/searchApp.prova";
 
     private final ProvaService service;
 
