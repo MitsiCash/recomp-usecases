@@ -1,0 +1,27 @@
+:- eval(patient()).
+
+% negation as failure support
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+patient() :-
+    rcvMult(XID,P,javaRunner,request,{operation->login,idp->IDP,dataController->DC}),
+    sendMsgSync(XID,P,DC,request,{operation->login,idp->IDP}),
+    rcvMult(XID,P,IDP,data_exchange,{operation->assert,token->TOKEN}),
+    assert(useToken(DC,TOKEN)),
+    println(["log: Patient asserted token ", TOKEN, " for authenticating with ", DC]),
+    spawn(XID,$Service,resume,[]).
+
+patient() :-
+    rcvMult(XID,P,javaRunner,request,{operation->OP,dataController->DC, purpose->PU, parties->PA}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,P,DC,request,{operation->OP, purpose->PU, parties->PA,token->TOKEN}).
+
+patient() :-
+    rcvMult(XID,P,javaRunner,request,{operation->OP,dataController->DC,subject->S}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,P,DC,request,{operation->OP, subject->S, token->TOKEN}).
+

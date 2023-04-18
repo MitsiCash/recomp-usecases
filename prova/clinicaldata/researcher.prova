@@ -1,0 +1,40 @@
+:- eval(researcher()).
+
+% negation as failure support
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+researcher() :-
+    rcvMult(XID,P,javaRunner,request,{operation->login,idp->IDP,dataController->DC}),
+    sendMsgSync(XID,P,DC,request,{operation->login,idp->IDP}),
+    rcvMult(XID,P,IDP,data_exchange,{operation->assert,token->TOKEN}),
+    assert(useToken(DC,TOKEN)),
+    println(["log: researcher asserted token ", TOKEN, " for authenticating with ", DC]),
+    spawn(XID,$Service,resume,[]).
+
+researcher() :-
+    rcvMult(XID,Pr,javaRunner,request,{operation->retrieveAllData,dataController->DC,purpose->PU}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,Pr,DC,request,{operation->retrieveAllData, purpose->PU, token->TOKEN}),
+    rcvMsg(XID,Pr,A,data_exchange,{data->L}),
+    !,
+    println(["Researcher received the following data: ", L]),
+    spawn(XID,$Service,resume,[]).
+
+researcher() :-
+    rcvMult(XID,Pr,javaRunner,request,{operation->retrieveAllData,dataController->DC,purpose->PU,subject->S}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,Pr,DC,request,{operation->retrieveAllData, purpose->PU, token->TOKEN,subject->S}),
+    rcvMsg(XID,Pr,A,data_exchange,{data->L}),
+
+    println(["Researcher received the following data: ", L]),
+    spawn(XID,$Service,resume,[]).
+
+researcher() :-
+    rcvMult(XID,Pr,javaRunner,request,{operation->generateAnonymizedData,dataController->DC}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,Pr,DC,request,{operation->generateAnonymizedData, token->TOKEN}).
+

@@ -211,6 +211,9 @@ public class UseCase implements EPService {
         service.send("xid11", "alice", "javaRunner", "request", payload, this);
         wait_();
 
+        System.out.println("End of use case");
+        service.destroy();
+
     }
 
     public static void main(String[] args) {

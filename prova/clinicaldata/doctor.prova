@@ -1,0 +1,46 @@
+:- eval(doctor()).
+
+% negation as failure support
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+doctor() :-
+    rcvMult(XID,P,javaRunner,request,{operation->login,idp->IDP,dataController->DC}),
+    sendMsgSync(XID,P,DC,request,{operation->login,idp->IDP}),
+    rcvMult(XID,P,IDP,data_exchange,{operation->assert,token->TOKEN}),
+    assert(useToken(DC,TOKEN)),
+    println(["log: doctor asserted token ", TOKEN, " for authenticating with ", DC]),
+    spawn(XID,$Service,resume,[]).
+
+doctor() :-
+    rcvMult(XID,Pr,javaRunner,request,{operation->assert,dataController->DC, data->Data, subject->P}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,Pr,DC,data_exchange,{operation->assert, data->Data, token->TOKEN, subject->P}).
+
+doctor() :-
+    rcvMult(XID,Pr,javaRunner,request,{operation->Op,dataController->DC, subject->P}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,Pr,DC,request,{operation->Op, token->TOKEN, subject->P}).
+
+
+doctor() :-
+    rcvMult(XID,Pr,javaRunner,request,{operation->retrieveAllData,dataController->DC, subject->P, purpose->PU}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,Pr,DC,request,{operation->retrieveAllData, token->TOKEN, subject->P, purpose->PU}),
+    rcvMsg(XID,Pr,A,data_exchange,{data->L}),
+    println(["Doctor received the following data: ", L]),
+    spawn(XID,$Service,resume,[]).
+    % sendMsgSync(XID,P,A,data_exchange,{data->L}).
+
+doctor() :-
+    rcvMult(XID,Pr,javaRunner,request,{operation->retrieveAllData, dataController->DC, purpose->research}),
+    useToken(DC,TOKEN),
+    sendMsgSync(XID,Pr,DC,request,{operation->retrieveAllData, token->TOKEN, purpose->research}),
+    rcvMsg(XID,Pr,A,data_exchange,{data->L}),
+    println(["Doctor received the following data: ", L]),
+    spawn(XID,$Service,resume,[]).
+
+

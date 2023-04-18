@@ -1,0 +1,121 @@
+:- eval(dataController()).
+
+% negation as failure support
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->login,idp->IDP}) [not(hasToken(A,_,_))],
+    sendMsgSync(XID,P,IDP,request,{operation->login,agent->A}),
+    rcvMult(XID,P,IDP,data_exchange,{operation->assert,agent->A, token->T, role->ROLE}),
+    assert(hasToken(A,T,ROLE)),
+    println(["log: DC asserted agent ", A, ", token ", T, ", and role: ", ROLE]).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->login,idp->IDP}) [hasToken(A,_,_)],
+    println(["log: agent ", A, " already logged in"]),
+    spawn(XID,$Service,resume,[]).
+
+token_check(A,TOKEN) :-
+    bound(TOKEN),
+    hasToken(A,TOKEN,_).
+
+token_check(A,TOKEN) :-
+    not(bound(TOKEN)),
+    fail().
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->demonstrateConsent, purpose->PU, parties->PA,token->T}) [token_check(A,T)],
+    assert(consent(A,PU,PA)),
+    println(["log: DC asserted consent for sharing data with ", PA, "s for ", PU, " purpose(s)", " for ", A]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->declareEmergency, subject->S, token->T}) [token_check(A,T)],
+    assert(emergency(S)),
+    println(["log: emergency status declared for patient ", S]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->endEmergency, subject->S, token->T}) [token_check(A,T), staffDB(A, Role, emergencyRoom)],
+    retract(emergency(S)),
+    println(["log: emergency status litfed for patient ", S]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{token->TOKEN}) [not(token_check(A,TOKEN)), !],
+    println(["Error: token not recognized"]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,data_exchange,{operation->assert,data->Data,token->T, subject->S}) [token_check(A,T), hasToken(A,T,clinical_doctor), consent(S,PU,clinical_doctor)],
+    staffDB(A, ROLE, DEPT),
+    patient(S,DEPT),
+    assert(data(S,PU,Data,nonAnonymized)),
+    println(["log: DC stored data for patient ", S, ": data(", S,",", PU,",", Data, ",", "nonAnonymized", ")"]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,data_exchange,{operation->assert,data->Data, token->T, subject->S}) [token_check(A,T), staffDB(A,Role,emergencyRoom), emergency(S), consent(S,PU,clinical_doctor)],
+    assert(data(S,PU,Data,nonAnonymized)),
+    println(["log: DC stored data for patient ", S, ": data(", S,",", PU,",", Data, ",", "nonAnonymized", ")"]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,data_exchange,{operation->assert,data->Data,token->T, subject->S}) [token_check(A,T), hasToken(A,T,ROLE), not(consent(S,PU,ROLE))],
+    println(["ERROR: ", S, " has not provided consent for data access"]),
+    spawn(XID,$Service,resume,[]).
+
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->admit,token->T, subject->S}) [token_check(A,T), staffDB(A, clinical_doctor, DEPT), not(patient(S,DEPT)),!],
+    assert(patient(S,DEPT)),
+    println(["log: ", S, " admitted to: ",DEPT, " by the doctor ", A]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->admit,token->T, subject->S}) [patient(S,DEPT), token_check(A,T), staffDB(A, _, DEPT)],
+    println(["log: ", S, " is already admitted to: ",DEPT]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->discharge,token->T, subject->S}) [token_check(A,T), staffDB(A, clinical_doctor, DEPT),patient(S,DEPT)],
+    retract(patient(S,DEPT)),
+    println(["log: ", S, " discharged from: ",DEPT, " by the doctor ", A]),
+    spawn(XID,$Service,resume,[]).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->retrieveAllData,token->T, subject->S, purpose->PU}) [token_check(A,T), staffDB(A, clinical_doctor, DEPT), patient(S,DEPT)],
+    findall(Data,data(S,PU,Data,ANON),L),
+    sendMsgSync(XID,P,A,data_exchange,{data->L}).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->retrieveAllData,token->T, subject->S, purpose->PU}) [bound(S), emergency(S), token_check(A,T), staffDB(A, Role, DEPT)],
+    findall(Data,data(S,PU,Data,ANON),L),
+    sendMsgSync(XID,P,A,data_exchange,{data->L}).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->retrieveAllData,token->T,purpose->research}) [token_check(A,T), staffDB(A, ROLE, DEPT)],
+    findall(Data,data(S,research,Data,anonymized),L),
+    sendMsgSync(XID,P,A,data_exchange,{data->L}).
+
+dataController() :-
+    rcvMult(XID,P,A,request,{operation->generateAnonymizedData,token->T}) [token_check(A,T), staffDB(A, Role, DEPT)],
+    println(["log: dataController received a request to generate anonymized", DEPT,"data"], " "),
+    % TODO: current patients only? or all patients?
+    %patient(S,DEPT),
+    consent(S,research,PA),
+    data(S,PU,Data,nonAnonymized),
+    TEMP = "anon",
+    Data2 = TEMP.concat(Data),
+    S2 = java.util.UUID.randomUUID(),
+    assert(data(S2,research,Data2,anonymized)),
+    spawn(XID,$Service,resume,[]).
+
+% data controller database
+staffDB(doctor1, clinical_doctor, cardiology).
+staffDB(researcher, researcher, cardiology).
+staffDB(doctor2, clinical_doctor, emergencyRoom).

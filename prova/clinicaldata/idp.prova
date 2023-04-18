@@ -1,0 +1,35 @@
+%% Identity provider agent for the clinical data access use case,      %%
+%% emphasizing on roles rather than account creation, passwords, etc., %%
+%% therefore all agent info is hardcoded here with no further checks   %%
+
+:- eval(idp()).
+
+% negation as failure support
+not(A) :-
+        derive(A),
+        !,
+        fail().
+not(_).
+
+idp() :-
+    rcvMult(XID,P,DC,request,{operation->login,agent->A}) [role(A,Role)],
+    % generate a random UUID
+    TOKEN = java.util.UUID.randomUUID(),
+    % send the token back to both agents
+    sendMsg(XID,P,DC,data_exchange,{operation->assert,agent->A, token->TOKEN,role->Role}),
+    sendMsg(XID,P,A,data_exchange,{operation->assert,agent->DC, token->TOKEN}).
+
+idp() :-
+    rcvMult(XID,P,DC,request,{operation->login,agent->A}) [not(role(A,Role))],
+    println(["Agent not registered"]),
+    spawn(XID,$Service,resume,[]).
+
+% facts
+% role/2: role(Name, Role)  % maybe do it with /3?? : role(Agent, Role, Hospital/Institute)
+role(patient, data_owner).
+role(doctor1, clinical_doctor).
+role(doctor2, clinical_doctor).
+role(researcher, researcher).
+role(dataController, dataController).
+
+
